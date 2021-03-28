@@ -2,6 +2,8 @@
 import random
 import math
 import hashlib
+import base64
+import sys
 
 class PrimeGenerate:
     def __init__ (self,start,end):
@@ -27,6 +29,7 @@ class PrimeGenerate:
             my_num=random.randint(self.start,self.end)
         return my_num
 
+
 class DigitalSignature:
     def __init__(self,message,n):
         """Calculate and return an integer representation of the message's sha256 hash digest"""
@@ -44,12 +47,24 @@ class DigitalSignature:
     def sign_mess(self,d):
         """Sign the message using private key"""
         #Use RSA decryption algorithm to sign the message
-        return self.i_mess**d%self.n
+        sign=self.i_mess**d%self.n
+
+        #Convert the signature to bytes, here I use 4 bytes  
+        b_sign=sign.to_bytes(3,"big")
+        #Return the signature as 64 bit encoded string
+        return base64.b64encode(b_sign).decode() 
+
 
     def verify_mess(self,sign,e):
         """Verify the integrity of the message using public key"""
+        #Decode the base64 signature
+        b64_sign=base64.b64decode(sign)
+
+        #Convert the bytes to integer signature
+        i_sign=int.from_bytes(b64_sign,"big")
+
         #Calculate the expected hash digest from the signature using RSA encryption algorithm
-        cal_sign=sign**e%self.n
+        cal_sign=i_sign**e%self.n
         if cal_sign==self.i_mess:
             return True
         else:
@@ -72,6 +87,40 @@ def find_d(e,lambda_n):
         if d*e%lambda_n == 1:
             return d
     return False
+
+def key_to_base64(n,e_d):
+    """Convert the private key or public key to base64 encoded characters"""
+    #Convert the integers to bytes
+    bytes_n=n.to_bytes(3,"big")
+    bytes_e_d=e_d.to_bytes(3,"big")
+    
+    #Convert the bytes to base64 encoded character string
+    base64_n=base64.b64encode(bytes_n).decode()
+    base64_e_d=base64.b64encode(bytes_e_d).decode()
+
+    #Choose a random place to append the string
+    place=random.randint(0,len(base64_n))
+    return base64_n[:place]+"SIsTBdc"+base64_n[place:]+"EM2AhSkBCPxjErL0"+base64_e_d[:place]+"gmYMD5"+base64_e_d[place:]
+
+def base64_to_key(base64_key):
+    """Convert the key back to integer to get n and e/d"""
+    #Retrieve base64 of n and e/d
+    my_base64=base64_key.split("EM2AhSkBCPxjErL0")
+    
+    #Get base64 encoded of n and e/d
+    base64_n=my_base64[0].replace("SIsTBdc","")
+    base64_e_d=my_base64[1].replace("gmYMD5","")
+
+    #Retrieve the bytes of n and e/d 
+    bytes_n=base64.b64decode(base64_n)
+    bytes_e_d=base64.b64decode(base64_e_d)
+
+    #Convert the bytes back to integer
+    n=int.from_bytes(bytes_n,"big")
+    e_d=int.from_bytes(bytes_e_d,"big")
+
+    return n, e_d
+
 
 def key_gen():
     """Generate key pairs:
@@ -96,9 +145,11 @@ def key_gen():
     #Calcualte e and d
     e=find_e(lambda_n)
     d=find_d(e,lambda_n)
-    
-    print("Public key: n={}, e={}".format(n,e))
-    print("Private key: d={}".format(d))
+
+    base64_public=key_to_base64(n,e)
+    base64_private=key_to_base64(n,d)
+    print("Public key: {}".format(base64_public))
+    print("Private key: {}".format(base64_private))
 
 def encrypt(message,n,e):
     """Encrypt a message using public key and return a string of encrypted number"""
@@ -125,38 +176,59 @@ def main():
     print("3. Decrypt a cipher number string using the private key")
     print("4. Sign a message using your private key")
     print("5. Verify a message using your public key")
+    error_key="[-] Error! Invalid key format!"
     choice = input("Enter your choice: ")
     if choice == "1":
         key_gen()
     
     elif choice == "2":
         message=input("Enter your message: ")
-        n=int(input("Enter your n: "))
-        e=int(input("Enter your public e key: "))
+        public_key=input("Enter your public key: ")
+        #Capture error key
+        try:
+            n,e=base64_to_key(public_key)
+        except:
+            print(error_key)
+            sys.exit(1)
         cipher=encrypt(message,n,e)
         print("[+] Encrypted message: {}".format(cipher))
     
     elif choice == "3":
         cipher=input("Enter your cipher number string: ")
-        n=int(input("Enter your n: "))
-        d=int(input("Enter your private key d: "))
+        private_key=input("Enter your private key: ")
+        #Capture error key
+        try:
+            n,d=base64_to_key(private_key)
+        except:
+            print(error_key)
+            sys.exit(1)
         print("[+] Decrypting message...")
         message=decrypt(cipher,n,d)
         print(message)
     
     elif choice == "4":
         message=input("Enter the message you want to sign: ")
-        n=int(input("Enter your n: "))
-        d=int(input("Enter your private key d: "))
+        private_key=input("Enter your private key: ")
+        #Capture error key
+        try:
+            n,d=base64_to_key(private_key)
+        except:
+            print(error_key)
+            sys.exit(1)
         digitalSign=DigitalSignature(message,n)
         signature=digitalSign.sign_mess(d)
         print("[+] Your signature: {}".format(signature))
 
     elif choice == "5":
         message=input("Enter the message you want to verify: ")
-        n=int(input("Enter your n: "))
-        e=int(input("Enter your public key e: "))
-        sign=int(input("Enter the Digital Signature you received: "))
+        public_key=input("Enter your public key: ")
+        sign=input("Enter the Digital Signature you received: ")
+        #Capture error key
+        try:
+            n,e=base64_to_key(public_key)
+        except:
+            print(error_key)
+            sys.exit(1)
         digitalSign=DigitalSignature(message,n)
         verified=digitalSign.verify_mess(sign,e)
         if verified:
