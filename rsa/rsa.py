@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import random
 import math
+import hashlib
+
 class PrimeGenerate:
     def __init__ (self,start,end):
         """Declare range for the prime number"""
@@ -24,6 +26,34 @@ class PrimeGenerate:
         while not self.is_prime(my_num):
             my_num=random.randint(self.start,self.end)
         return my_num
+
+class DigitalSignature:
+    def __init__(self,message,n):
+        """Calculate and return an integer representation of the message's sha256 hash digest"""
+        self.n=n
+
+        #Get the hash digest of the encoded message
+        h_mess=hashlib.sha256()
+        h_mess.update(message.encode())
+        d_mess=h_mess.digest()
+
+        #Convert the bytes digest to int
+        #Since the int is bigger than n -> Calculate the moduler of int % n
+        self.i_mess=int.from_bytes(d_mess,"big")%self.n
+  
+    def sign_mess(self,d):
+        """Sign the message using private key"""
+        #Use RSA decryption algorithm to sign the message
+        return self.i_mess**d%self.n
+
+    def verify_mess(self,sign,e):
+        """Verify the integrity of the message using public key"""
+        #Calculate the expected hash digest from the signature using RSA encryption algorithm
+        cal_sign=sign**e%self.n
+        if cal_sign==self.i_mess:
+            return True
+        else:
+            return False
 
 def lcm(a,b):
     """Calculate least common multiplier as an integer"""
@@ -66,8 +96,9 @@ def key_gen():
     #Calcualte e and d
     e=find_e(lambda_n)
     d=find_d(e,lambda_n)
+    
     print("Public key: n={}, e={}".format(n,e))
-    print("Secret key: n={}, d={}".format(n,d))
+    print("Private key: d={}".format(d))
 
 def encrypt(message,n,e):
     """Encrypt a message using public key and return a string of encrypted number"""
@@ -84,6 +115,7 @@ def decrypt(cipher,n,d):
         message+=(chr(int(num)**d%n))
     return message
 
+
 def main():
     print("################################################")
     print("##############Welcome to basic RSA##############")
@@ -91,15 +123,19 @@ def main():
     print("1. Generate key pairs")
     print("2. Encrypt a message using the public key")
     print("3. Decrypt a cipher number string using the private key")
+    print("4. Sign a message using your private key")
+    print("5. Verify a message using your public key")
     choice = input("Enter your choice: ")
     if choice == "1":
         key_gen()
+    
     elif choice == "2":
         message=input("Enter your message: ")
         n=int(input("Enter your n: "))
         e=int(input("Enter your public e key: "))
         cipher=encrypt(message,n,e)
         print("[+] Encrypted message: {}".format(cipher))
+    
     elif choice == "3":
         cipher=input("Enter your cipher number string: ")
         n=int(input("Enter your n: "))
@@ -107,6 +143,27 @@ def main():
         print("[+] Decrypting message...")
         message=decrypt(cipher,n,d)
         print(message)
+    
+    elif choice == "4":
+        message=input("Enter the message you want to sign: ")
+        n=int(input("Enter your n: "))
+        d=int(input("Enter your private key d: "))
+        digitalSign=DigitalSignature(message,n)
+        signature=digitalSign.sign_mess(d)
+        print("[+] Your signature: {}".format(signature))
+
+    elif choice == "5":
+        message=input("Enter the message you want to verify: ")
+        n=int(input("Enter your n: "))
+        e=int(input("Enter your public key e: "))
+        sign=int(input("Enter the Digital Signature you received: "))
+        digitalSign=DigitalSignature(message,n)
+        verified=digitalSign.verify_mess(sign,e)
+        if verified:
+            print("[+] Verified successfully!")
+        else:
+            print("[-] Error! Message has been changed")
+
     else:
         print("[-] Error! Invalid option!")
 
